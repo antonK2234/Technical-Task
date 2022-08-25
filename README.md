@@ -15,5 +15,8 @@ This script can also be run locally
 
 1.Connect to Azure
 Connect-AzAccount
+
 2. Execute the command for each machine
 Invoke-AzVMRunCommand -ResourceGroupName test-grp -Name test-vm1 -CommandId 'RunPowerShellScript' -ScriptPath .\IIS_script.ps1
+
+Working link - http://20.125.150.79/
