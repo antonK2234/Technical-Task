@@ -86,7 +86,6 @@ resource "azurerm_windows_virtual_machine" "test-vm1" {
   size                = "Standard_D2s_v3"
   admin_username      = "demousr"
   admin_password      = "Azure@123"
-  # availability_set_id = azurerm_availability_set.app_set.id
   zone = 1
   network_interface_ids = [
     azurerm_network_interface.app_interface1.id,
@@ -105,8 +104,7 @@ resource "azurerm_windows_virtual_machine" "test-vm1" {
   }
 
   depends_on = [
-    azurerm_network_interface.app_interface1,
-    # azurerm_availability_set.app_set
+    azurerm_network_interface.app_interface1
   ]
 }
 
@@ -117,7 +115,6 @@ resource "azurerm_windows_virtual_machine" "test-vm2" {
   size                = "Standard_D2s_v3"
   admin_username      = "demousr"
   admin_password      = "Azure@123"
-  # availability_set_id = azurerm_availability_set.app_set.id
   zone = 2
   network_interface_ids = [
     azurerm_network_interface.app_interface2.id,
@@ -136,83 +133,71 @@ resource "azurerm_windows_virtual_machine" "test-vm2" {
   }
 
   depends_on = [
-    azurerm_network_interface.app_interface2,
-    # azurerm_availability_set.app_set
+    azurerm_network_interface.app_interface2
   ]
 }
 
-# resource "azurerm_availability_set" "app_set" {
-#   name                = "app-set"
-#   location            = local.location
-#   resource_group_name = local.resource_group
-#   platform_fault_domain_count = 3
-#   platform_update_domain_count = 3  
-#   depends_on = [
-#     azurerm_resource_group.test-grp
-#   ]
-# }
+resource "azurerm_storage_account" "teststore" {
+  name = "teststore2234"
+  resource_group_name = local.resource_group
+  location = local.location
+  account_tier = "Standard"
+  account_replication_type = "LRS"
+}
 
-# resource "azurerm_storage_account" "teststore" {
-#   name = "teststore2234"
-#   resource_group_name = local.resource_group
-#   location = local.location
-#   account_tier = "Standard"
-#   account_replication_type = "LRS"
-# }
+resource "azurerm_storage_container" "testcontainer" {
+  name = "testcontainer"
+  storage_account_name = "teststore2234"
+  container_access_type = "blob"
+  depends_on = [
+    azurerm_storage_account.teststore
+  ]
+}
 
-# resource "azurerm_storage_container" "testcontainer" {
-#   name = "testcontainer"
-#   storage_account_name = "teststore2234"
-#   container_access_type = "blob"
-#   depends_on = [
-#     azurerm_storage_account.teststore
-#   ]
-# }
+resource "azurerm_storage_blob" "IIS_config" {
+  name = "IIS_Config.ps1"
+  storage_account_name = "teststore2234"
+  storage_container_name = "testcontainer"
+  type = "Block"
+  source = "IIS_Config.ps1"
+  depends_on = [
+    azurerm_storage_container.testcontainer
+  ]
+}
 
-# resource "azurerm_storage_blob" "IIS_config" {
-#   name = "IIS_Config.ps1"
-#   storage_account_name = "teststore2234"
-#   storage_container_name = "testcontainer"
-#   type = "Block"
-#   source = "IIS_Config.ps1"
-#   depends_on = [
-#     azurerm_storage_container.testcontainer
-#   ]
-# }
+resource "azurerm_virtual_machine_extension" "vm_extension1" {
+  name = "vm-extension1"
+  virtual_machine_id = azurerm_windows_virtual_machine.test-vm1.id
+  publisher = "Microsoft.Compute"
+  type = "CustomScriptExtension"
+  type_handler_version = "1.10"
+  depends_on = [
+    azurerm_storage_blob.IIS_config
+  ]
+  settings = <<SETTINGS
+    {
+        "fileUris": ["https://${azurerm_storage_account.teststore.name}.blob.core.windows.net/testcontainer/IIS_Config.ps1"],
+          "commandToExecute": "powershell -ExecutionPolicy Unrestricted -file IIS_Config.ps1"     
+    }
+SETTINGS
+}
 
-# resource "azurerm_virtual_machine_extension" "vm_extension1" {
-#   name = "vm-extension1"
-#   virtual_machine_id = azurerm_windows_virtual_machine.test-vm1.id
-#   publisher = "Microsoft.Compute"
-#   type = "CustomScriptExtension"
-#   type_handler_version = "1.10"
-#   depends_on = [
-#     azurerm_storage_blob.IIS_config
-#   ]
-#   settings = <<SETTINGS
-#     {
-#         "fileUris": ["https://${azurerm_storage_account.teststore.name}.blob.core.windows.net/testcontainer/IIS_Config.ps1"],
-#           "commandToExecute": "powershell -ExecutionPolicy Unrestricted -file IIS_Config.ps1"     
-#     }
-# SETTINGS
-# }
-
-# resource "azurerm_virtual_machine_extension" "vm_extension2" {
-#   name = "vm-extension1"
-#   virtual_machine_id = azurerm_windows_virtual_machine.test-vm2.id
-#   publisher = "Microsoft.Compute"
-#   type = "CustomScriptExtension"
-#   type_handler_version = "1.10"
-#   depends_on = [
-#     azurerm_storage_blob.IIS_config
-#   ]
-#   settings = <<SETTINGS
-#     {
-#         "fileUris": ["https://${azurerm_storage_account.teststore.name}.blob.core.windows.net/testcontainer/IIS_Config.ps1"],
-#           "commandToExecute": "powershell -ExecutionPolicy Unrestricted -file IIS_Config.ps1"     
-#     }
-# SETTINGS
-# }
+resource "azurerm_virtual_machine_extension" "vm_extension2" {
+  name = "vm-extension1"
+  virtual_machine_id = azurerm_windows_virtual_machine.test-vm2.id
+  publisher = "Microsoft.Compute"
+  type = "CustomScriptExtension"
+  type_handler_version = "1.10"
+  depends_on = [
+    azurerm_storage_blob.IIS_config
+  ]
+  settings = <<SETTINGS
+    {
+        "fileUris": ["https://${azurerm_storage_account.teststore.name}.blob.core.windows.net/testcontainer/IIS_Config.ps1"],
+          "commandToExecute": "powershell -ExecutionPolicy Unrestricted -file IIS_Config.ps1"     
+    }
+SETTINGS
+}
 
 resource "azurerm_network_security_group" "test_nsg" {
   name = "test_nsg"
